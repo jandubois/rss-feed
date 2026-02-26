@@ -107,7 +107,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("resolving home directory: %v", err)
 	}
-	defaultConfig := filepath.Join(home, ".config", "xml-feed", "config.yaml")
+	defaultConfig := filepath.Join(home, ".config", "rss-feed", "config.yaml")
 	configPath := flag.String("config", defaultConfig, "path to config file")
 	site := flag.String("site", "", "process only this site")
 	limit := flag.Int("limit", 0, "max posts to process (0 = all)")
@@ -116,7 +116,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println("xml-feed version " + version)
+		fmt.Println("rss-feed version " + version)
 		return
 	}
 
@@ -154,8 +154,8 @@ func processSite(name string, config SiteConfig, limit int, delay time.Duration)
 		return fmt.Errorf("parsing site URL: %w", err)
 	}
 	hostname := u.Hostname()
-	cacheDir := filepath.Join(home, ".cache", "xml-feed", hostname)
-	outputPath := filepath.Join(home, ".local", "share", "xml-feed", hostname+".xml")
+	cacheDir := filepath.Join(home, ".cache", "rss-feed", hostname)
+	outputPath := filepath.Join(home, ".local", "share", "rss-feed", hostname+".xml")
 
 	fmt.Printf("Fetching index: %s\n", config.URL)
 	posts, err := fetchIndex(config)

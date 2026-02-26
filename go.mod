@@ -1,4 +1,4 @@
-module xml-feed
+module rss-feed
 
 go 1.25.0
 
