@@ -100,7 +100,12 @@ type AtomContent struct {
 }
 
 func main() {
-	configPath := flag.String("config", "config.yaml", "path to config file")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("resolving home directory: %v", err)
+	}
+	defaultConfig := filepath.Join(home, ".config", "xml-feed", "config.yaml")
+	configPath := flag.String("config", defaultConfig, "path to config file")
 	site := flag.String("site", "", "process only this site")
 	limit := flag.Int("limit", 0, "max posts to process (0 = all)")
 	delay := flag.Duration("delay", time.Second, "delay between HTTP fetches")
@@ -134,8 +139,14 @@ func loadConfig(path string) (*Config, error) {
 }
 
 func processSite(name string, config SiteConfig, limit int, delay time.Duration) error {
-	cacheDir := filepath.Join("cache", name)
-	outputPath := filepath.Join("output", name+".xml")
+	home, _ := os.UserHomeDir()
+	u, err := url.Parse(config.URL)
+	if err != nil {
+		return fmt.Errorf("parsing site URL: %w", err)
+	}
+	hostname := u.Hostname()
+	cacheDir := filepath.Join(home, ".cache", "xml-feed", hostname)
+	outputPath := filepath.Join(home, ".local", "share", "xml-feed", hostname+".xml")
 
 	fmt.Printf("Fetching index: %s\n", config.URL)
 	posts, err := fetchIndex(config)
