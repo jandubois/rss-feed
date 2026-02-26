@@ -20,6 +20,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// version is set at build time via -ldflags "-X main.version=..."
+var version = "dev"
+
 // Configuration types
 
 type Config struct {
@@ -109,7 +112,13 @@ func main() {
 	site := flag.String("site", "", "process only this site")
 	limit := flag.Int("limit", 0, "max posts to process (0 = all)")
 	delay := flag.Duration("delay", time.Second, "delay between HTTP fetches")
+	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("xml-feed version " + version)
+		return
+	}
 
 	config, err := loadConfig(*configPath)
 	if err != nil {
