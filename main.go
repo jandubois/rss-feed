@@ -199,39 +199,43 @@ func processSite(name string, config SiteConfig, limit int, delay time.Duration)
 	var entries []Post
 	fetched := 0
 	for i, post := range posts {
+		var rawContent string
+
 		cp := cachePath(cacheDir, post.URL)
 		if cached, err := readCache(cp); err == nil {
 			fmt.Printf("  [%d/%d] cached: %s\n", i+1, len(posts), post.Title)
-			entries = append(entries, Post{
+			rawContent = cached.Content
+		} else {
+			if fetched > 0 {
+				time.Sleep(delay)
+			}
+			fmt.Printf("  [%d/%d] fetching: %s\n", i+1, len(posts), post.Title)
+			var err error
+			rawContent, err = fetchContent(post.URL, config)
+			if err != nil {
+				log.Printf("  error fetching %s: %v", post.URL, err)
+				continue
+			}
+
+			dateStr := ""
+			if post.Date != nil {
+				dateStr = post.Date.Format(time.RFC3339)
+			}
+			if err := writeCache(cp, CacheEntry{
 				URL:     post.URL,
 				Title:   post.Title,
-				Date:    post.Date,
-				Content: cached.Content,
-			})
-			continue
+				Date:    dateStr,
+				Content: rawContent,
+			}); err != nil {
+				log.Printf("  error caching %s: %v", post.URL, err)
+			}
+			fetched++
 		}
 
-		if fetched > 0 {
-			time.Sleep(delay)
-		}
-		fmt.Printf("  [%d/%d] fetching: %s\n", i+1, len(posts), post.Title)
-		content, err := fetchContent(post.URL, config)
+		content, err := transformContent(rawContent, config.Content)
 		if err != nil {
-			log.Printf("  error fetching %s: %v", post.URL, err)
+			log.Printf("  error transforming %s: %v", post.URL, err)
 			continue
-		}
-
-		dateStr := ""
-		if post.Date != nil {
-			dateStr = post.Date.Format(time.RFC3339)
-		}
-		if err := writeCache(cp, CacheEntry{
-			URL:     post.URL,
-			Title:   post.Title,
-			Date:    dateStr,
-			Content: content,
-		}); err != nil {
-			log.Printf("  error caching %s: %v", post.URL, err)
 		}
 
 		entries = append(entries, Post{
@@ -240,7 +244,6 @@ func processSite(name string, config SiteConfig, limit int, delay time.Duration)
 			Date:    post.Date,
 			Content: content,
 		})
-		fetched++
 	}
 
 	if err := generateFeed(config, entries, outputPath); err != nil {
@@ -318,12 +321,27 @@ func fetchContent(postURL string, config SiteConfig) (string, error) {
 		return "", fmt.Errorf("container %q not found", config.Content.Container)
 	}
 
-	for _, sel := range config.Content.Remove {
-		container.Find(sel).Remove()
+	html, err := container.Html()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(html), nil
+}
+
+func transformContent(rawHTML string, config ContentConfig) (string, error) {
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(rawHTML))
+	if err != nil {
+		return "", err
 	}
 
-	for sel, style := range config.Content.Styles {
-		container.Find(sel).Each(func(_ int, s *goquery.Selection) {
+	body := doc.Find("body")
+
+	for _, sel := range config.Remove {
+		body.Find(sel).Remove()
+	}
+
+	for sel, style := range config.Styles {
+		body.Find(sel).Each(func(_ int, s *goquery.Selection) {
 			existing, _ := s.Attr("style")
 			if existing != "" {
 				style = existing + "; " + style
@@ -332,7 +350,7 @@ func fetchContent(postURL string, config SiteConfig) (string, error) {
 		})
 	}
 
-	html, err := container.Html()
+	html, err := body.Html()
 	if err != nil {
 		return "", err
 	}
