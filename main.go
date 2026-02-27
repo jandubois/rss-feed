@@ -442,14 +442,12 @@ var plistTemplate = template.Must(template.New("plist").Parse(`<?xml version="1.
 	<string>com.jandubois.rss-feed</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>{{.Executable}}</string>
+		<string>/bin/sh</string>
+		<string>-c</string>
+		<string>{{.Executable}} >> {{.LogPath}} 2>&amp;1</string>
 	</array>
 	<key>StartInterval</key>
 	<integer>21600</integer>
-	<key>StandardOutPath</key>
-	<string>{{.LogPath}}</string>
-	<key>StandardErrorPath</key>
-	<string>{{.LogPath}}</string>
 	<key>RunAtLoad</key>
 	<true/>
 </dict>
