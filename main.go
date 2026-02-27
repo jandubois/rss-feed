@@ -10,10 +10,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
@@ -121,6 +123,18 @@ func main() {
 
 	if *showVersion {
 		fmt.Println("rss-feed version " + version)
+		return
+	}
+
+	if flag.NArg() > 0 {
+		switch flag.Arg(0) {
+		case "install":
+			install(home)
+		case "uninstall":
+			uninstall(home)
+		default:
+			log.Fatalf("unknown command: %s", flag.Arg(0))
+		}
 		return
 	}
 
@@ -414,4 +428,89 @@ func writeCache(path string, entry CacheEntry) error {
 func wrapCDATA(s string) string {
 	s = strings.ReplaceAll(s, "]]>", "]]]]><![CDATA[>")
 	return "<![CDATA[" + s + "]]>"
+}
+
+// launchd integration
+
+const launchAgentLabel = "com.jandubois.rss-feed"
+
+var plistTemplate = template.Must(template.New("plist").Parse(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.jandubois.rss-feed</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>{{.Executable}}</string>
+	</array>
+	<key>StartInterval</key>
+	<integer>21600</integer>
+	<key>StandardOutPath</key>
+	<string>{{.LogPath}}</string>
+	<key>StandardErrorPath</key>
+	<string>{{.LogPath}}</string>
+	<key>RunAtLoad</key>
+	<true/>
+</dict>
+</plist>
+`))
+
+func launchAgentPath(home string) string {
+	return filepath.Join(home, "Library", "LaunchAgents", launchAgentLabel+".plist")
+}
+
+func install(home string) {
+	exe, err := os.Executable()
+	if err != nil {
+		log.Fatalf("resolving executable path: %v", err)
+	}
+	exe, err = filepath.EvalSymlinks(exe)
+	if err != nil {
+		log.Fatalf("resolving symlinks: %v", err)
+	}
+
+	plistPath := launchAgentPath(home)
+	logPath := filepath.Join(home, ".local", "share", "rss-feed", "rss-feed.log")
+
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		log.Fatalf("creating log directory: %v", err)
+	}
+
+	f, err := os.Create(plistPath)
+	if err != nil {
+		log.Fatalf("creating plist: %v", err)
+	}
+	defer f.Close()
+
+	err = plistTemplate.Execute(f, struct {
+		Executable string
+		LogPath    string
+	}{exe, logPath})
+	if err != nil {
+		log.Fatalf("writing plist: %v", err)
+	}
+
+	if err := exec.Command("launchctl", "load", plistPath).Run(); err != nil {
+		log.Fatalf("launchctl load: %v", err)
+	}
+	fmt.Printf("Installed %s\n", plistPath)
+	fmt.Printf("Runs every 6 hours; logs to %s\n", logPath)
+}
+
+func uninstall(home string) {
+	plistPath := launchAgentPath(home)
+
+	if _, err := os.Stat(plistPath); os.IsNotExist(err) {
+		log.Fatalf("not installed: %s does not exist", plistPath)
+	}
+
+	if err := exec.Command("launchctl", "unload", plistPath).Run(); err != nil {
+		log.Printf("launchctl unload: %v", err)
+	}
+
+	if err := os.Remove(plistPath); err != nil {
+		log.Fatalf("removing plist: %v", err)
+	}
+	fmt.Printf("Uninstalled %s\n", plistPath)
 }
