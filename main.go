@@ -45,8 +45,9 @@ type IndexConfig struct {
 }
 
 type ContentConfig struct {
-	Container string   `yaml:"container"`
-	Remove    []string `yaml:"remove"`
+	Container string            `yaml:"container"`
+	Remove    []string          `yaml:"remove"`
+	Styles    map[string]string `yaml:"styles"`
 }
 
 type FeedConfig struct {
@@ -293,6 +294,16 @@ func fetchContent(postURL string, config SiteConfig) (string, error) {
 
 	for _, sel := range config.Content.Remove {
 		container.Find(sel).Remove()
+	}
+
+	for sel, style := range config.Content.Styles {
+		container.Find(sel).Each(func(_ int, s *goquery.Selection) {
+			existing, _ := s.Attr("style")
+			if existing != "" {
+				style = existing + "; " + style
+			}
+			s.SetAttr("style", style)
+		})
 	}
 
 	html, err := container.Html()
