@@ -25,7 +25,10 @@ var version = "dev"
 
 // Configuration types
 
+const defaultLimit = 10
+
 type Config struct {
+	Limit *int                   `yaml:"limit"`
 	Sites map[string]SiteConfig `yaml:"sites"`
 }
 
@@ -111,7 +114,7 @@ func main() {
 	defaultConfig := filepath.Join(home, ".config", "rss-feed", "config.yaml")
 	configPath := flag.String("config", defaultConfig, "path to config file")
 	site := flag.String("site", "", "process only this site")
-	limit := flag.Int("limit", 0, "max posts to process (0 = all)")
+	limit := flag.Int("limit", -1, "max posts to process (0 = all, default 10)")
 	delay := flag.Duration("delay", time.Second, "delay between HTTP fetches")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
@@ -126,11 +129,20 @@ func main() {
 		log.Fatalf("loading config: %v", err)
 	}
 
+	// Resolve limit: --limit flag > config file > built-in default
+	effectiveLimit := defaultLimit
+	if config.Limit != nil {
+		effectiveLimit = *config.Limit
+	}
+	if *limit >= 0 {
+		effectiveLimit = *limit
+	}
+
 	for name, siteConfig := range config.Sites {
 		if *site != "" && *site != name {
 			continue
 		}
-		if err := processSite(name, siteConfig, *limit, *delay); err != nil {
+		if err := processSite(name, siteConfig, effectiveLimit, *delay); err != nil {
 			log.Printf("error processing %s: %v", name, err)
 		}
 	}
