@@ -9,19 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - goos: darwin
-            goarch: arm64
-          - goos: darwin
-            goarch: amd64
-          - goos: linux
-            goarch: arm64
-          - goos: linux
-            goarch: amd64
     steps:
       - uses: actions/checkout@v4
 
@@ -31,32 +20,13 @@ jobs:
 
       - name: Build binary
         env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
+          GOOS: darwin
+          GOARCH: arm64
           CGO_ENABLED: 0
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          go build -ldflags "-X main.version=${VERSION}" -o rss-feed-${{ matrix.goos }}-${{ matrix.goarch }} .
-
-      - name: Generate checksum
-        run: sha256sum rss-feed-${{ matrix.goos }}-${{ matrix.goarch }} > rss-feed-${{ matrix.goos }}-${{ matrix.goarch }}.sha256
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: rss-feed-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: |
-            rss-feed-${{ matrix.goos }}-${{ matrix.goarch }}
-            rss-feed-${{ matrix.goos }}-${{ matrix.goarch }}.sha256
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          merge-multiple: true
+          go build -ldflags "-X main.version=${VERSION}" -o rss-feed-darwin-arm64 .
+          sha256sum rss-feed-darwin-arm64 > rss-feed-darwin-arm64.sha256
 
       - name: Get tag annotation
         id: tag
@@ -70,7 +40,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            rss-feed-*
+            rss-feed-darwin-arm64
+            rss-feed-darwin-arm64.sha256
           body: ${{ steps.tag.outputs.body }}
 
       - name: Update Homebrew tap

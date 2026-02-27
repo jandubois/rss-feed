@@ -469,7 +469,7 @@ func install(home string) {
 	}
 
 	plistPath := launchAgentPath(home)
-	logPath := filepath.Join(home, ".local", "share", "rss-feed", "rss-feed.log")
+	logPath := filepath.Join(home, "Library", "Logs", "rss-feed", "rss-feed.log")
 
 	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
 		log.Fatalf("creating log directory: %v", err)
