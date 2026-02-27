@@ -100,7 +100,7 @@ type AtomEntry struct {
 
 type AtomContent struct {
 	Type  string `xml:"type,attr"`
-	Value string `xml:",chardata"`
+	Value string `xml:",innerxml"`
 }
 
 func main() {
@@ -340,7 +340,7 @@ func generateFeed(config SiteConfig, entries []Post, outputPath string) error {
 			Link:  AtomLink{Href: entry.URL, Rel: "alternate"},
 			Content: AtomContent{
 				Type:  "html",
-				Value: entry.Content,
+				Value: wrapCDATA(entry.Content),
 			},
 		}
 		if entry.Date != nil {
@@ -397,4 +397,9 @@ func writeCache(path string, entry CacheEntry) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0644)
+}
+
+func wrapCDATA(s string) string {
+	s = strings.ReplaceAll(s, "]]>", "]]]]><![CDATA[>")
+	return "<![CDATA[" + s + "]]>"
 }
